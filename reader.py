@@ -1,5 +1,3 @@
-import collections
-import os
 import cPickle
 
 import numpy as np
