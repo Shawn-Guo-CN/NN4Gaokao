@@ -1,8 +1,8 @@
-import cPickle
-
+import theano
 import numpy as np
-import tensorflow as tf
-import uniout
+
+import cPickle
+import config
 
 def build_dict_vocab(embedding_file):
     print "... running reader.build_word_dict"
@@ -28,7 +28,7 @@ def build_dict_vocab(embedding_file):
             embedding_matrix.append(id_to_vec[i])
             i += 1
         id_to_vec[i] = np.asarray([1.] * 100, dtype=float)
-        id_to_word[i] = 'unk'
+        id_to_word[i] = '<unk>'
         embedding_matrix.append(id_to_vec[i])
         embedding_matrix = np.asarray(embedding_matrix, dtype=float)
 
@@ -62,109 +62,122 @@ def lable_to_var(file_name):
     return y
 
 def init_and_save():
-    embedding_file = 'data/dict.txt'
-    x_file = 'data/train_words.txt'
-    y_file = 'data/train_labels.txt'
 
-    word_to_id, id_to_word, keys, id_to_vec, embedding_matrix = build_dict_vocab(embedding_file)
-    with open('data/params/word2id.dat', 'wb') as f:
+    word_to_id, id_to_word, keys, id_to_vec, embedding_matrix = build_dict_vocab(config.embedding_file)
+    with open(config.word2id_param_file, 'wb') as f:
         print '... saving word_to_id to data/params/word2id.dat'
         cPickle.dump(word_to_id, f)
-    with open('data/params/id2word.dat', 'wb') as f:
+    with open(config.id2word_param_file, 'wb') as f:
         print '... saving word_to_id to data/params/id2word.dat'
         cPickle.dump(id_to_word, f)
-    with open('data/params/keys.dat', 'wb') as f:
+    with open(config.keys_param_file, 'wb') as f:
         print '... saving keys to data/params/keys.dat'
         cPickle.dump(keys, f)
-    with open('data/params/id2vec.dat', 'wb') as f:
+    with open(config.id2vec_param_file, 'wb') as f:
         print '... saving id_to_vec to data/params/id2vec.dat'
         cPickle.dump(id_to_vec, f)
-    with open('data/params/embedding_matrix', 'wb') as f:
+    with open(config.embedding_param_file, 'wb') as f:
         print '... saving embedding_matrix to data/params/embedding_matrix.dat'
         cPickle.dump(embedding_matrix, f)
 
-    x = data_to_word_ids(x_file, word_to_id, keys)
-    with open('data/params/x.dat', 'wb') as f:
-        print '... saving x to data/params/x.dat'
-        cPickle.dump(x, f)
+    train_x = data_to_word_ids('data/raw_material/train_words.txt', word_to_id, keys)
+    train_y = lable_to_var('data/raw_material/train_labels.txt')
+    train_set = [train_x, train_y]
 
-    y = lable_to_var(y_file)
-    with open('data/params/y.dat', 'wb') as f:
-        print '... saving y to ' + 'data/params/y.dat'
-        cPickle.dump(y, f)
+    test_x = data_to_word_ids('data/raw_material/test_words.txt', word_to_id, keys)
+    test_y = lable_to_var('data/raw_material/test_labels.txt')
+    test_set = [test_x, test_y]
+
+    with open(config.dataset, 'wb') as f:
+        print '... saving dataset to data/GKHMC.pickle'
+        cPickle.dump([train_set, test_set], f)
+
 
 def get_embedding_matrix_from_param_file(file_name):
     with open(file_name, 'rb') as f:
-        print '... saving embedding_matrix to data/params/embedding_matrix.dat'
+        print '... loadng embedding_matrix from data/params/embedding_matrix.dat'
         embedding_matrix = cPickle.load(f)
 
     return embedding_matrix
 
-def load_params():
+def prepare_data(seqs, labels, maxlen=None):
+    """Create the matrices from the datasets.
+
+    This pad each sequence to the same lenght: the lenght of the
+    longuest sequence or maxlen.
+
+    if maxlen is set, we will cut all sequence to this maximum
+    lenght.
     """
-    with open('data/params/word2id.dat', 'rb') as f:
-        print '... loading word_to_id'
-        word_to_id = cPickle.load(f)
-    with open('data/params/id2word.dat', 'rb') as f:
-        print '... loading id_to_word'
-        id_to_word = cPickle.load(f)
-    with open('data/params/keys.dat', 'rb') as f:
-        print '... loading keys '
-        keys = cPickle.load(f)
-    with open('data/params/id2vec.dat', 'rb') as f:
-        print '... loading id_to_vec'
-        id_to_vec = cPickle.load(f)
-    with open('data/params/embedding_matrix', 'rb') as f:
-        print '... loading embedding_matrix'
-        embedding_matrix = cPickle.load(f)
+    # x: a list of sentences
+    lengths = [len(s) for s in seqs]
 
-    for i in xrange(len(x)):
-        x[i].append(y[i])
+    if maxlen is not None:
+        new_seqs = []
+        new_labels = []
+        new_lengths = []
+        for l, s, y in zip(lengths, seqs, labels):
+            if l < maxlen:
+                new_seqs.append(s)
+                new_labels.append(y)
+                new_lengths.append(l)
+        lengths = new_lengths
+        labels = new_labels
+        seqs = new_seqs
 
-    x = sorted(x, key=len)
-    x = np.asarray(x)
+        if len(lengths) < 1:
+            return None, None, None
 
-    for i in xrange(len(x)):
-        y[i] = x[i][-1]
-        x[i] = x[i][:-1]
+    n_samples = len(seqs)
+    maxlen = np.max(lengths)
 
-    with open('data/params/x.dat', 'wb') as f:
-        print '... saving x to data/params/x.dat'
-        cPickle.dump(x, f)
+    x = np.zeros((n_samples, maxlen)).astype('int32')
+    x_mask = np.zeros((n_samples, maxlen)).astype(theano.config.floatX)
+    for idx, s in enumerate(seqs):
+        x[idx, :lengths[idx]] = s
+        x_mask[idx, :lengths[idx]] = 1.
 
-    with open('data/params/y.dat', 'wb') as f:
-        print '... saving y to ' + 'data/params/y.dat'
-        cPickle.dump(y, f)
-    """
-    with open('data/params/x.dat', 'rb') as f:
-        print '... loading x'
-        x = cPickle.load(f)
-    with open('data/params/y.dat', 'rb') as f:
-        print '... loading y'
-        y = cPickle.load(f)
+    labels = np.asarray(labels, dtype='int32')
 
-    return x, y
+    return x, x_mask, labels
 
-def xy_iterator(batch_size):
-    x, y = load_params()
-    unk = 51418
-    data_num = len(y)
-    batch_num = data_num // batch_size
-    if batch_num == 0:
-        raise ValueError("batch_num == 0, decrease batch_size")
+initialize = True
+datasets = []
+train_set_x = []
+train_set_y = []
+test_set_x = []
+test_set_y = []
 
+def gkhmc_iterator(path="data/GKHMC.pickle", is_train=True, batch_size=100):
+    global initialize
+    global datasets
+    global train_set_x
+    global train_set_y
+    global test_set_x
+    global test_set_y
 
-    for i in range(batch_num):
-        batch_end = batch_size * (i + 1) - 1
-        batch_len = len(x[batch_end])
-        data = np.zeros([batch_size, batch_len], dtype=np.int32)
-        for ii in range(batch_size):
-            data[ii] = x[batch_size * i + ii] + [unk] * (batch_len - len(x[batch_size * i + ii]))
-        yield data, y[batch_size * i : batch_size * (i + 1)]
+    if initialize:
+        with open(path, 'rb') as f:
+            datasets = cPickle.load(f)
+        train_set_x, train_set_y = datasets[0]
+        test_set_x, test_set_y = datasets[1]
+        initialize = False
+
+    train_batch_num = len(train_set_x) / batch_size
+    test_batch_num = len(test_set_x) / batch_size
+
+    if is_train:
+        for idx in xrange(train_batch_num):
+            yield prepare_data(train_set_x[idx * batch_size : (idx + 1) * batch_size],
+                               train_set_y[idx * batch_size : (idx + 1) * batch_size])
+    else:
+        for idx in xrange(test_batch_num):
+            yield prepare_data(test_set_x[idx * batch_size : (idx + 1) * batch_size],
+                               test_set_y[idx * batch_size : (idx + 1) * batch_size])
 
 if __name__ == "__main__":
-    # init_and_save()
-    # load_params()
-    for i in xy_iterator(12):
-        print "x:", i[0]
-        print "y:", i[1]
+    for i in gkhmc_iterator(is_train=False, batch_size=10):
+        print i[0]
+        print i[1]
+        print i[2]
+        exit(0)
