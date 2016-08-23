@@ -34,6 +34,8 @@ class LSTM_LR_model(object):
 
         self.output = self.lr_layer.y_d
 
+        self.p_d = self.lr_layer.y_given_x[:, 1]
+
         self.error = self.lr_layer.error
 
         self.loss = self.lr_layer.loss
