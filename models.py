@@ -9,6 +9,7 @@ def numpy_floatX(data):
 
 class LSTM_LR_model(object):
     def __init__(self, x, y, mask, emb, word_size=100, hidden_size=400, out_size=2, prefix='model_'):
+        self.name = 'LSTM_LR'
 
         self.embedd_layer = Embedding_layer(
             x=x,

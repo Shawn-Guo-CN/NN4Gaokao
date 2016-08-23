@@ -1,9 +1,9 @@
 import theano
 import theano.tensor as T
 import numpy as np
+import cPickle
 
 import config
-import optimizers
 from reader import get_embedding_matrix_from_param_file
 from reader import gkhmc_iterator
 from config import options
@@ -20,16 +20,18 @@ def pred_check(p_ds, ys):
             right_num += 1
     return right_num, total_num
 
-def run():
+def run_epoch():
+    # define symbolic variables
     x = T.imatrix('x')
     y = T.ivector('y')
     mask = T.matrix('mask', dtype=theano.config.floatX)
     lr = T.scalar(name='lr')
 
+    # build model
+    print '...building model'
     np_emb = get_embedding_matrix_from_param_file(config.embedding_param_file)
 
-    print '...building model'
-    model = options['model'](x, y, mask, np_emb)
+    model = options['model'](x, y, mask, np_emb, options['word_size'], options['hidden_size'], options['out_size'])
 
     cost = model.loss
     grads = T.grad(cost, wrt=list(model.params.values()))
@@ -39,6 +41,17 @@ def run():
     detector = theano.function(inputs=[x, mask, y], outputs=model.error)
     p_predictor = theano.function(inputs=[x, mask], outputs=model.p_d)
 
+    # load parameters from specified file
+    if not options['loaded_params'] is None:
+        print '... loading parameters from ' + options['loaded_params']
+        file_name = options['param_path'] + model.name + '_hidden' + str(options['hidden_size']) + '_lrate' + \
+                    str(options['lrate']) + '_batch' + str(options['batch_size']) + '.pickle'
+        with open(file_name, 'rb') as f:
+            param_dict = cPickle.load(f)
+            for k, v in model.params.items():
+                v.set_value(param_dict[k])
+
+    # test the performance of initialized parameters
     p_ds = []
     ys = []
     for x_, mask_, y_ in gkhmc_iterator(path='data/GKHMC.pickle', batch_size=options['valid_batch_size'],
@@ -49,6 +62,9 @@ def run():
     right_num , total_num = pred_check(p_ds, ys)
     print right_num, '/', total_num
 
+    best_perform = -np.inf
+
+    # training model
     print '...training model'
     for i in xrange(options['max_epochs']):
         total_loss = 0.
@@ -61,14 +77,17 @@ def run():
             idx += 1
         print ', total loss:', total_loss
 
+        # validate model performance when necessary
         if (i + 1) % options['valid_freq'] == 0:
+            # test performance on train set
             errors = []
-            for x_, mask_, y_ in gkhmc_iterator(path='data/GKHMC.pickle', batch_size=options['valid_batch_size'],
+            for x_, mask_, y_ in gkhmc_iterator(path='data/GKHMC.pickle', batch_size=options['batch_size'],
                                                 is_train=True):
                 error = detector(x_, mask_, y_)
                 errors.append(error)
             print '\ttrain error of epoch ' + str(i) + ': ' + str(np.mean(errors) * 100) + '%'
 
+            # test performance on test set
             p_ds = []
             ys = []
             for x_, mask_, y_ in gkhmc_iterator(path='data/GKHMC.pickle', batch_size=options['valid_batch_size'],
@@ -78,8 +97,19 @@ def run():
                 ys.extend(y_)
             right_num, total_num = pred_check(p_ds, ys)
             print '\ttest performance of epoch', i, ':', right_num, '/', total_num, '\t', \
-                float(right_num) / float(total_num), '%'
+                float(right_num) / float(total_num) * 100., '%'
 
+            # save parameters
+            if float(right_num) / float(total_num) > best_perform:
+                best_perform = float(right_num) / float(total_num) * 100.
+                print '\t...saving parameters'
+                file_name = options['param_path'] + model.name + '_hidden' + str(options['hidden_size']) + '_lrate' + \
+                            str(options['lrate']) + '_batch' + str(options['batch_size']) + '_epoch' + str(i+1) + '.pickle'
+                with open(file_name, 'wb') as f:
+                    new_dict = {}
+                    for k, v in model.params.items():
+                        new_dict[k] = v.get_value()
+                    cPickle.dump(new_dict, f)
 
 if __name__ == '__main__':
-    run()
+    run_epoch()
