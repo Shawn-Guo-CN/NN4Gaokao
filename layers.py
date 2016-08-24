@@ -145,11 +145,11 @@ class LSTM_layer(object):
         self.params  = {prefix+'W' : self.W, prefix+'U': self.U, prefix+'b': self.b}
 
 class Dropout_layer(object):
-    def __init__(self, input):
+    def __init__(self, x, p=0.5):
         use_noise = theano.shared(numpy_floatX(0.))
         trng = RandomStreams(415)
 
         self.output = T.switch(use_noise,
-                               (input * trng.binomial(input.shape, p=0.5, n=1, dtype=input.dtype)),
-                               input * 0.5
+                               (x * trng.binomial(x.shape, p=p, n=1, dtype=x.dtype)),
+                               x * p
                                )

@@ -31,6 +31,7 @@ options = OrderedDict(
         'param_path': 'data/',  # path to save parameters
         'loaded_params': None,
         'use_dropout': True,  # use dropout layer or not
-        'lstm_mean_pooling': True # use mean pooling as output of lstm or not
+        'drop_p': 0.5,  # the probability of dropout
+        'lstm_mean_pooling': True  # use mean pooling as output of lstm or not
     }
 )

@@ -9,7 +9,7 @@ def numpy_floatX(data):
 
 class LSTM_LR_model(object):
     def __init__(self, x, y, mask, emb, word_size=100, hidden_size=400, out_size=2,
-                 use_dropout=True, mean_pooling=True, prefix='model_'):
+                 use_dropout=True, drop_p=0.5, mean_pooling=True, prefix='model_'):
         self.name = 'LSTM_LR'
 
         self.embedd_layer = Embedding_layer(
@@ -29,7 +29,7 @@ class LSTM_LR_model(object):
         )
 
         if use_dropout:
-            self.dropout_layer = Dropout_layer(input=self.lstm_layer.output)
+            self.dropout_layer = Dropout_layer(x=self.lstm_layer.output, p=drop_p)
 
             self.lr_layer = LogisticRegression(
                 x=self.dropout_layer.output,

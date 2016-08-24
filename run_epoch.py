@@ -33,7 +33,8 @@ def run_epoch():
 
     model = options['model'](x, y, mask, np_emb, options['word_size'],
                              options['hidden_size'], options['out_size'],
-                             options['use_dropout'], options['lstm_mean_pooling'])
+                             options['use_dropout'], options['drop_p'],
+                             options['lstm_mean_pooling'])
 
     cost = model.loss
     grads = T.grad(cost, wrt=list(model.params.values()))
