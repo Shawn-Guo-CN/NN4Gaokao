@@ -1,5 +1,6 @@
 import theano
 import theano.tensor as T
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import numpy as np
 
 def numpy_floatX(data):
@@ -56,7 +57,7 @@ class Embedding_layer(object):
         self.params = {prefix+'emb':self.emb}
 
 class LSTM_layer(object):
-    def __init__(self, x, in_size=100, hidden_size=400, prefix='lstm_', mask=None):
+    def __init__(self, x, mask=None, in_size=100, hidden_size=400, mean_pooling=True, prefix='lstm_'):
         """attention, every column in input is a sample"""
         def random_weights(x_dim, y_dim):
             return np.random.uniform(
@@ -134,43 +135,21 @@ class LSTM_layer(object):
                                     name=prefix+'_scan',
                                     n_steps=n_steps)
 
-        self.output = rval[0][-1, :, :]
-        self.out_all = rval[0][-1, :, :]
+        if mean_pooling:
+            hidden_sum = (rval[0] * mask[:, :, None]).sum(axis=0)
+            self.output = hidden_sum / mask.sum(axis=0)[:, None]
+        else:
+            self.output = rval[0][-1, :, :]
+            self.out_all = rval[0]
 
         self.params  = {prefix+'W' : self.W, prefix+'U': self.U, prefix+'b': self.b}
 
-class LSTM_model(object):
-    def __init__(self, x, y, mask, emb, word_size=100, hidden_size=400, out_size=2, prefix='model_'):
+class Dropout_layer(object):
+    def __init__(self, input):
+        use_noise = theano.shared(numpy_floatX(0.))
+        trng = RandomStreams(415)
 
-        self.embedd_layer = Embedding_layer(
-            x=x,
-            emb=emb,
-            word_size=word_size,
-            prefix='embedd_layer_'
-        )
-
-        self.lstm_layer = LSTM_layer(
-            x=self.embedd_layer.output,
-            in_size=word_size,
-            hidden_size=hidden_size,
-            prefix='lstm0_',
-            mask=T.transpose(mask)
-        )
-
-        self.lr_layer = LogisticRegression(
-            x=self.lstm_layer.output,
-            y=y,
-            in_size=hidden_size,
-            out_size=out_size
-        )
-
-        self.output = self.lr_layer.y_d
-
-        self.error = self.lr_layer.error
-
-        self.loss = self.lr_layer.loss
-
-        self.params = dict(self.embedd_layer.params.items()+
-                           self.lstm_layer.params.items()+
-                           self.lr_layer.params.items()
-                           )
+        self.output = T.switch(use_noise,
+                               (input * trng.binomial(input.shape, p=0.5, n=1, dtype=input.dtype)),
+                               input * 0.5
+                               )

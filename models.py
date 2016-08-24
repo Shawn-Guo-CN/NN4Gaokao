@@ -8,7 +8,8 @@ def numpy_floatX(data):
     return np.asarray(data, dtype=theano.config.floatX)
 
 class LSTM_LR_model(object):
-    def __init__(self, x, y, mask, emb, word_size=100, hidden_size=400, out_size=2, prefix='model_'):
+    def __init__(self, x, y, mask, emb, word_size=100, hidden_size=400, out_size=2,
+                 use_dropout=True, mean_pooling=True, prefix='model_'):
         self.name = 'LSTM_LR'
 
         self.embedd_layer = Embedding_layer(
@@ -20,18 +21,29 @@ class LSTM_LR_model(object):
 
         self.lstm_layer = LSTM_layer(
             x=self.embedd_layer.output,
+            mask=T.transpose(mask),
             in_size=word_size,
             hidden_size=hidden_size,
-            prefix='lstm0_',
-            mask=T.transpose(mask)
+            mean_pooling=mean_pooling,
+            prefix='lstm0_'
         )
 
-        self.lr_layer = LogisticRegression(
-            x=self.lstm_layer.output,
-            y=y,
-            in_size=hidden_size,
-            out_size=out_size
-        )
+        if use_dropout:
+            self.dropout_layer = Dropout_layer(input=self.lstm_layer.output)
+
+            self.lr_layer = LogisticRegression(
+                x=self.dropout_layer.output,
+                y=y,
+                in_size=hidden_size,
+                out_size=out_size
+            )
+        else:
+            self.lr_layer = LogisticRegression(
+                x=self.lstm_layer.output,
+                y=y,
+                in_size=hidden_size,
+                out_size=out_size
+            )
 
         self.output = self.lr_layer.y_d
 

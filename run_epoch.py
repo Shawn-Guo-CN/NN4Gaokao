@@ -31,7 +31,9 @@ def run_epoch():
     print '...building model'
     np_emb = get_embedding_matrix_from_param_file(config.embedding_param_file)
 
-    model = options['model'](x, y, mask, np_emb, options['word_size'], options['hidden_size'], options['out_size'])
+    model = options['model'](x, y, mask, np_emb, options['word_size'],
+                             options['hidden_size'], options['out_size'],
+                             options['use_dropout'], options['lstm_mean_pooling'])
 
     cost = model.loss
     grads = T.grad(cost, wrt=list(model.params.values()))
@@ -96,15 +98,22 @@ def run_epoch():
                 p_ds.extend(p_d)
                 ys.extend(y_)
             right_num, total_num = pred_check(p_ds, ys)
+
+            save = False
+
+            if float(right_num) / float(total_num) > best_perform:
+                best_perform = float(right_num) / float(total_num)
+                save = True
+
             print '\ttest performance of epoch', i, ':', right_num, '/', total_num, '\t', \
-                float(right_num) / float(total_num) * 100., '%'
+                float(right_num * 10000 / total_num) / 100., '%', '\tbest through:', float(int(best_perform * 10000)) / 100.
 
             # save parameters
-            if float(right_num) / float(total_num) > best_perform:
-                best_perform = float(right_num) / float(total_num) * 100.
+            if save:
                 print '\t...saving parameters'
                 file_name = options['param_path'] + model.name + '_hidden' + str(options['hidden_size']) + '_lrate' + \
-                            str(options['lrate']) + '_batch' + str(options['batch_size']) + '_epoch' + str(i+1) + '.pickle'
+                            str(options['lrate']) + '_batch' + str(options['batch_size']) + '_epoch' + str(i+1) + \
+                            '_perform' + str(float(int(best_perform * 10000)) / 100.) + '.pickle'
                 with open(file_name, 'wb') as f:
                     new_dict = {}
                     for k, v in model.params.items():
