@@ -100,8 +100,8 @@ def run_epoch():
                 ys.extend(y_)
             right_num, total_num = pred_check(p_ds, ys)
 
+            # judge whether it's necessary to save the parameters
             save = False
-
             if float(right_num) / float(total_num) > best_perform:
                 best_perform = float(right_num) / float(total_num)
                 save = True
@@ -109,7 +109,7 @@ def run_epoch():
             print '\ttest performance of epoch', i, ':', right_num, '/', total_num, '\t', \
                 float(right_num * 10000 / total_num) / 100., '%', '\tbest through:', float(int(best_perform * 10000)) / 100.
 
-            # save parameters
+            # save parameters if need
             if save:
                 print '\t...saving parameters'
                 file_name = options['param_path'] + model.name + '_hidden' + str(options['hidden_size']) + '_lrate' + \

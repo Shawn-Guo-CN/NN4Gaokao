@@ -46,6 +46,10 @@ class Embedding_layer(object):
 
         self.x = T.transpose(x)
 
+        # L2-normalize the embedding matrix
+        emb_ = np.sqrt(np.sum(emb ** 2, axis=1))
+        emb = emb / np.dot(emb_.reshape(-1, 1), np.ones((1, emb.shape[1])))
+
         self.emb = theano.shared(
             value=np.asarray(emb, dtype=theano.config.floatX),
             name=prefix + 'emb',
