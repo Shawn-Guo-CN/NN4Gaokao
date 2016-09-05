@@ -39,7 +39,7 @@ def run_epoch():
     cost = model.loss
     grads = T.grad(cost, wrt=list(model.params.values()))
     optimizer = options['optimizer']
-    f_grad_shared, f_update = optimizer(lr, model.params, grads, x, mask, y, cost)
+    f_grad_shared, f_update = optimizer(lr, model.params, grads, [x, mask, y], cost)
 
     detector = theano.function(inputs=[x, mask, y], outputs=model.error)
     p_predictor = theano.function(inputs=[x, mask], outputs=model.p_d)
@@ -47,8 +47,7 @@ def run_epoch():
     # load parameters from specified file
     if not options['loaded_params'] is None:
         print '... loading parameters from ' + options['loaded_params']
-        file_name = options['param_path'] + model.name + '_hidden' + str(options['hidden_size']) + '_lrate' + \
-                    str(options['lrate']) + '_batch' + str(options['batch_size']) + '.pickle'
+        file_name = options['loaded_params']
         with open(file_name, 'rb') as f:
             param_dict = cPickle.load(f)
             for k, v in model.params.items():

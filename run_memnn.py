@@ -44,8 +44,7 @@ def run_epoch():
     # load parameters from specified file
     if not options['loaded_params'] is None:
         print '... loading parameters from ' + options['loaded_params']
-        file_name = options['param_path'] + model.name + '_hidden' + str(options['hidden_size']) + '_lrate' + \
-                    str(options['lrate']) + '_batch' + str(options['batch_size']) + '.pickle'
+        file_name = options['loaded_params']
         with open(file_name, 'rb') as f:
             param_dict = cPickle.load(f)
             for k, v in model.params.items():
