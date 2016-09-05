@@ -161,7 +161,7 @@ class LSTM_layer(object):
         self.params  = {prefix+'W' : self.W, prefix+'U': self.U, prefix+'b': self.b}
 
 class GRU_layer(object):
-    def __init__(self, x, mask=None, in_size=100, hidden_size=400, mean_pooling=True, prefix='lstm_'):
+    def __init__(self, x, mask=None, in_size=100, hidden_size=400, mean_pooling=True, prefix='gru_'):
         """attention, every column in input is a sample"""
         def random_weights(x_dim, y_dim):
             return np.random.uniform(
