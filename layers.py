@@ -39,6 +39,17 @@ class LogisticRegression(object):
 
         self.params = {prefix+'W':self.W, prefix+'b':self.b}
 
+class Embedding_layer_uniEmb(object):
+    def __init__(self, x, emb, word_size=100, prefix='embedd_layer_'):
+        n_steps = x.shape[1]
+        n_samples = x.shape[0]
+
+        self.x = T.transpose(x)
+
+        self.output = emb[self.x.flatten()].reshape([n_steps, n_samples, word_size])
+
+        self.params = {}
+
 class Embedding_layer(object):
     def __init__(self, x, emb, word_size=100, prefix='embedd_layer_'):
         n_steps = x.shape[1]

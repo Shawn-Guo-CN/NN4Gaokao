@@ -5,7 +5,7 @@ import theano.tensor as T
 def numpy_floatX(data):
     return numpy.asarray(data, dtype=theano.config.floatX)
 
-def sgd(lr, tparams, grads, x, mask, y, cost):
+def sgd(lr, tparams, grads, data_list, cost):
     """ Stochastic Gradient Descent
 
     :note: A more complicated version of sgd then needed.  This is
@@ -20,7 +20,7 @@ def sgd(lr, tparams, grads, x, mask, y, cost):
 
     # Function that computes gradients for a mini-batch, but do not
     # updates the weights.
-    f_grad_shared = theano.function([x, mask, y], cost, updates=gsup,
+    f_grad_shared = theano.function(data_list, cost, updates=gsup,
                                     name='sgd_f_grad_shared')
 
     pup = [(p, p - lr * g) for p, g in zip(tparams.values(), gshared)]
@@ -33,7 +33,7 @@ def sgd(lr, tparams, grads, x, mask, y, cost):
     return f_grad_shared, f_update
 
 
-def adadelta(lr, tparams, grads, x, mask, y, cost):
+def adadelta(lr, tparams, grads, data_list, cost):
     """
     An adaptive learning rate optimizer
 
@@ -76,7 +76,7 @@ def adadelta(lr, tparams, grads, x, mask, y, cost):
     rg2up = [(rg2, 0.95 * rg2 + 0.05 * (g ** 2))
              for rg2, g in zip(running_grads2, grads)]
 
-    f_grad_shared = theano.function([x, mask, y], cost, updates=zgup + rg2up,
+    f_grad_shared = theano.function(data_list, cost, updates=zgup + rg2up,
                                     name='adadelta_f_grad_shared')
 
     updir = [-T.sqrt(ru2 + 1e-6) / T.sqrt(rg2 + 1e-6) * zg
@@ -94,7 +94,7 @@ def adadelta(lr, tparams, grads, x, mask, y, cost):
     return f_grad_shared, f_update
 
 
-def rmsprop(lr, tparams, grads, x, mask, y, cost):
+def rmsprop(lr, tparams, grads, data_list, cost):
     """
     A variant of  SGD that scales the step size by running average of the
     recent step norms.
@@ -140,7 +140,7 @@ def rmsprop(lr, tparams, grads, x, mask, y, cost):
     rg2up = [(rg2, 0.95 * rg2 + 0.05 * (g ** 2))
              for rg2, g in zip(running_grads2, grads)]
 
-    f_grad_shared = theano.function([x, mask, y], cost,
+    f_grad_shared = theano.function(data_list, cost,
                                     updates=zgup + rgup + rg2up,
                                     name='rmsprop_f_grad_shared')
 
