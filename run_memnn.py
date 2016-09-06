@@ -31,7 +31,7 @@ def run_epoch():
     # build model
     print '...building model'
     np_emb = get_embedding_matrix_from_param_file(config.embedding_param_file)
-    model = options['model'](q, l, a, y, np_emb, options['mem_size'], options['word_size'])
+    model = options['model'](q, l, a, y, np_emb, options['mem_size'], options['word_size'], options['use_dropout'])
 
     cost = model.loss
     grads = T.grad(cost, wrt=list(model.params.values()))
@@ -110,7 +110,7 @@ def run_epoch():
             # save parameters if need
             if save:
                 print '\t...saving parameters'
-                file_name = options['param_path'] + model.name + '_hidden' + str(options['hidden_size']) + '_lrate' + \
+                file_name = options['param_path'] + model.name + '_mem' + str(options['mem_size']) + '_lrate' + \
                             str(options['lrate']) + '_batch' + str(options['batch_size']) + '_epoch' + str(i+1) + \
                             '_perform' + str(float(int(best_perform * 10000)) / 100.) + '.pickle'
                 with open(file_name, 'wb') as f:

@@ -110,7 +110,7 @@ class GRU_LR_model(object):
                            )
 
 class Memory_Network(object):
-    def __init__(self, q, l, a, y, emb, mem_size=200, word_size=100, prefix='mem_nn_'):
+    def __init__(self, q, l, a, y, emb, mem_size=200, word_size=100, use_dropout=True, drop_p=0.5, prefix='mem_nn_'):
         self.name = 'MEM_NN'
 
         # L2-normalize the embedding matrix
@@ -198,13 +198,24 @@ class Memory_Network(object):
 
         self.o = T.mean(self.c * self.p, axis=1)
 
-        self.lr_layer = LogisticRegression(
-            x=T.concatenate([T.dot(self.o, self.W), self.r_a], axis=1),
-            y=y,
-            in_size=word_size * 2,
-            out_size=2,
-            prefix=prefix+'lr_layer_'
-        )
+        if use_dropout:
+            self.dropout_layer = Dropout_layer(x=T.concatenate([T.dot(self.o, self.W), self.r_a], axis=1), p=drop_p)
+
+            self.lr_layer = LogisticRegression(
+                x=self.dropout_layer.output,
+                y=y,
+                in_size=word_size * 2,
+                out_size=2,
+                prefix=prefix+'lr_layer_'
+            )
+        else:
+            self.lr_layer = LogisticRegression(
+                x=T.concatenate([T.dot(self.o, self.W), self.r_a], axis=1),
+                y=y,
+                in_size=word_size * 2,
+                out_size=2,
+                prefix=prefix+'lr_layer_'
+            )
 
         self.param = {
             prefix+'A': self.A,

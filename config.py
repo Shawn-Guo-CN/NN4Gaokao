@@ -20,19 +20,19 @@ options = OrderedDict(
         'hidden_size': 400,  # number of hidden units in single layer
         'out_size': 2,  # number of units in output layer
         'patience': 10,  # Number of epoch to wait before early stop if no progress
-        'max_epochs': 1000,  # The maximum number of epoch to run
-        'lrate': 1,  # Learning rate for sgd (not used for adadelta and rmsprop)
+        'max_epochs': 10000,  # The maximum number of epoch to run
+        'lrate': 0.1,  # Learning rate for sgd (not used for adadelta and rmsprop)
         'optimizer': optimizers.adadelta,  # sgd, adadelta and rmsprop available, sgd very hard to use, not recommanded (probably need momentum and decaying learning rate).
-        'valid_freq': 10,  # Compute the validation error after this number of update.
+        'valid_freq': 1,  # Compute the validation error after this number of update.
         'maxlen': 100,  # Sequence longer then this get ignored
-        'batch_size': 1800,  # The batch size during training.
+        'batch_size': 60,  # The batch size during training.
         'valid_batch_size': 20,  # The batch size used for validation/test set.
         'dataset': 'gkhmc',
         'param_path': 'data/',  # path to save parameters
-        'loaded_params': None,
-        'use_dropout': False,  # use dropout layer or not
+        'loaded_params': 'data/GRU_LR_hidden400_lrate0.1_batch1800_epoch13_perform45.9.pickle',
+        'use_dropout': True,  # use dropout layer or not
         'drop_p': 0.5,  # the probability of dropout
         'lstm_mean_pooling': False,  # use mean pooling as output of lstm or not
-        'mem_size': 200  # the hidden size of memory
+        'mem_size': 800  # the hidden size of memory
     }
 )
