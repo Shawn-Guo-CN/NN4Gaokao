@@ -3,8 +3,10 @@ import theano.tensor as T
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import numpy as np
 
+
 def numpy_floatX(data):
     return np.asarray(data, dtype=theano.config.floatX)
+
 
 class LogisticRegression(object):
     def __init__(self, x, y, in_size, out_size, prefix='lr_'):
@@ -39,16 +41,6 @@ class LogisticRegression(object):
 
         self.params = {prefix+'W':self.W, prefix+'b':self.b}
 
-class Embedding_layer_uniEmb(object):
-    def __init__(self, x, emb, word_size=100, prefix='embedd_layer_'):
-        n_steps = x.shape[1]
-        n_samples = x.shape[0]
-
-        self.x = T.transpose(x)
-
-        self.output = emb[self.x.flatten()].reshape([n_steps, n_samples, word_size])
-
-        self.params = {}
 
 class Embedding_layer(object):
     def __init__(self, x, emb, word_size=100, prefix='embedd_layer_'):
@@ -70,10 +62,23 @@ class Embedding_layer(object):
 
         self.output = self.emb[self.x.flatten()].reshape([n_steps, n_samples, word_size])
 
-        self.params = {prefix+'emb':self.emb}
+        self.params = {prefix+'emb': self.emb}
+
+
+class Embedding_layer_uniEmb(object):
+    def __init__(self, x, emb, word_size=100, prefix='embedd_layer_'):
+        n_steps = x.shape[1]
+        n_samples = x.shape[0]
+
+        self.x = T.transpose(x)
+
+        self.output = emb[self.x.flatten()].reshape([n_steps, n_samples, word_size])
+
+        self.params = {}
+
 
 class LSTM_layer(object):
-    def __init__(self, x, mask=None, in_size=100, hidden_size=400, mean_pooling=True, prefix='lstm_'):
+    def __init__(self, x, mask=None, in_size=100, hidden_size=400, mean_pooling=False, prefix='lstm_'):
         """attention, every column in input is a sample"""
         def random_weights(x_dim, y_dim):
             return np.random.uniform(
@@ -160,8 +165,9 @@ class LSTM_layer(object):
 
         self.params  = {prefix+'W' : self.W, prefix+'U': self.U, prefix+'b': self.b}
 
+
 class GRU_layer(object):
-    def __init__(self, x, mask=None, in_size=100, hidden_size=400, mean_pooling=True, prefix='gru_'):
+    def __init__(self, x, mask=None, in_size=100, hidden_size=400, mean_pooling=False, prefix='gru_'):
         """attention, every column in input is a sample"""
         def random_weights(x_dim, y_dim):
             return np.random.uniform(
@@ -240,6 +246,188 @@ class GRU_layer(object):
             self.out_all = rval
 
         self.params = {prefix+'W': self.W, prefix+'U': self.U, prefix+'b': self.b}
+
+
+class GRU_layer_uniParam(object):
+    def __init__(self, x, W, U, b, mask=None, in_size=100, hidden_size=400, mean_pooling=False, prefix='uni_gru_'):
+        """attention, every column in input is a sample"""
+
+        self.W = W
+        self.U = U
+        self.b = b
+
+        assert mask is not None
+
+        n_steps = x.shape[0]
+        if x.ndim == 3:
+            n_samples = x.shape[1]
+        else:
+            n_samples = 1
+
+        def _slice(_x, n, dim):
+            if _x.ndim == 3:
+                return _x[:, :, n * dim:(n + 1) * dim]
+            return _x[:, n * dim:(n + 1) * dim]
+
+        def _step(m_, x_, h_):
+            preact = T.dot(h_, self.U)
+            preact += x_
+
+            z = T.nnet.sigmoid(_slice(preact, 0, hidden_size))
+            r = T.nnet.sigmoid(_slice(preact, 1, hidden_size))
+            c = T.tanh(_slice(preact, 2, hidden_size) * r + (T.ones_like(r) - r) * _slice(x_, 2, hidden_size))
+
+            h = (T.ones_like(z) - z) * c + z * h_
+            h = m_[:, None] * h + (1. - m_)[:, None] * h_
+
+            return h
+
+        input = (T.dot(x, self.W) + self.b)
+
+        rval, updates = theano.scan(_step,
+                                    sequences=[mask, input],
+                                    outputs_info=[T.alloc(numpy_floatX(0.), n_samples, hidden_size)],
+                                    name=prefix+'_scan',
+                                    n_steps=n_steps)
+
+        if mean_pooling:
+            hidden_sum = (rval * mask[:, :, None]).sum(axis=0)
+            self.output = hidden_sum / mask.sum(axis=0)[:, None]
+        else:
+            self.output = rval[-1, :, :]
+            self.out_all = rval
+
+
+class DMN_GRU(object):
+    def __init__(self, x, l, mask=None, hidden_size=400, mean_pooling=False, prefix='dmn_gru_'):
+        """attention, every column in input is a sample"""
+        def random_weights(x_dim, y_dim):
+            return np.random.uniform(
+                low=-np.sqrt(6. / (x_dim + y_dim)),
+                high=np.sqrt(6. / (x_dim + y_dim)),
+                size=(x_dim, y_dim)
+            ).astype(theano.config.floatX)
+
+        self.W = theano.shared(
+            value=np.concatenate(
+                [random_weights(hidden_size, hidden_size),
+                 random_weights(hidden_size, hidden_size),
+                 random_weights(hidden_size, hidden_size)],
+                axis=1
+            ).astype(theano.config.floatX),
+            name=prefix+'W',
+            borrow=True
+        )
+
+        self.W0 = theano.shared(
+            value=random_weights(hidden_size, hidden_size),
+            name=prefix+'W0',
+            borrow=True
+        )
+
+        self.W1 = theano.shared(
+            value=random_weights(4 * hidden_size, hidden_size),
+            name=prefix + 'W1',
+            borrow=True
+        )
+
+        self.W2 = theano.shared(
+            value=np.random.uniform(
+                low=-np.sqrt(6. / hidden_size),
+                high=np.sqrt(6. / hidden_size),
+                size=(hidden_size, )
+            ).astype(theano.config.floatX),
+            name=prefix + 'W2',
+            borrow=True
+        )
+
+        self.U = theano.shared(
+            value=np.concatenate(
+                [random_weights(hidden_size, hidden_size),
+                 random_weights(hidden_size, hidden_size),
+                 random_weights(hidden_size, hidden_size)],
+                axis=1
+            ).astype(theano.config.floatX),
+            name=prefix+'U',
+            borrow=True
+        )
+
+        self.b = theano.shared(
+            value=np.zeros((3 * hidden_size,)).astype(theano.config.floatX),
+            name=prefix+'b',
+            borrow=True
+        )
+
+        self.b1 = theano.shared(
+            value=np.zeros(
+                shape=(hidden_size,),
+                dtype=theano.config.floatX
+            ),
+            name=prefix + 'b1',
+            borrow=True
+        )
+
+        self.b2 = theano.shared(
+            value=numpy_floatX(0.),
+            name=prefix + 'b2',
+            borrow=True
+        )
+
+        assert mask is not None
+
+        n_steps = x.shape[0]
+        if x.ndim == 3:
+            n_samples = x.shape[1]
+        else:
+            n_samples = 1
+
+        def _slice(_x, n, dim):
+            if _x.ndim == 3:
+                return _x[:, :, n * dim:(n + 1) * dim]
+            return _x[:, n * dim:(n + 1) * dim]
+
+        def _step(m_, x_, h_):
+            preact = T.dot(h_, self.U)
+            preact += x_
+
+            _x = _slice(x_, 2, hidden_size)
+            _z = T.concatenate([_x, l, _x * l, T.abs_(_x - l)], axis=1)  # T.dot(T.dot(T.transpose(x_), self.W0), l)
+            g = T.nnet.sigmoid(T.dot(T.tanh(T.dot(_z, self.W1) + self.b1), self.W2) + self.b2)
+
+            z = T.nnet.sigmoid(_slice(preact, 0, hidden_size))
+            r = T.nnet.sigmoid(_slice(preact, 1, hidden_size))
+            c = T.tanh(_slice(preact, 2, hidden_size) * r + (T.ones_like(r) - r) * _slice(x_, 2, hidden_size))
+
+            _h = (T.ones_like(z) - z) * c + z * h_
+            h = T.batched_dot(g, _h) + T.batched_dot(T.ones_like(g) - g, h_)
+            h = m_[:, None] * h + (1. - m_)[:, None] * h_
+
+            return h
+
+        input = (T.dot(x, self.W) + self.b)
+
+        rval, updates = theano.scan(_step,
+                                    sequences=[mask, input],
+                                    outputs_info=[T.alloc(numpy_floatX(0.), n_samples, hidden_size)],
+                                    name=prefix+'_scan',
+                                    n_steps=n_steps)
+
+        if mean_pooling:
+            hidden_sum = (rval * mask[:, :, None]).sum(axis=0)
+            self.output = hidden_sum / mask.sum(axis=0)[:, None]
+        else:
+            self.output = rval[-1, :, :]
+            self.out_all = rval
+
+        self.params = {prefix + 'W': self.W,
+                       prefix + 'U': self.U,
+                       prefix + 'b': self.b,
+                       # prefix + 'W0': self.W0,
+                       prefix + 'W1': self.W1,
+                       prefix + 'W2': self.W2,
+                       prefix + 'b1': self.b1,
+                       prefix + 'b2': self.b2}
+
 
 class Dropout_layer(object):
     def __init__(self, x, p=0.5):

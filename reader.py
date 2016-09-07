@@ -138,10 +138,10 @@ def init_and_save():
 
 def get_embedding_matrix_from_param_file(file_name):
     with open(file_name, 'rb') as f:
-        print '... loadng embedding_matrix from ' + file_name
+        print '...loadng embedding_matrix from ' + file_name
         embedding_matrix = cPickle.load(f)
 
-    return embedding_matrix
+    return np.asarray(embedding_matrix, dtype=theano.config.floatX)
 
 def prepare_data(seqs, labels, maxlen=None):
     """Create the matrices from the datasets.

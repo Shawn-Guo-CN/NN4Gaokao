@@ -77,6 +77,7 @@ def adadelta(lr, tparams, grads, data_list, cost):
              for rg2, g in zip(running_grads2, grads)]
 
     f_grad_shared = theano.function(data_list, cost, updates=zgup + rg2up,
+                                    on_unused_input='ignore',
                                     name='adadelta_f_grad_shared')
 
     updir = [-T.sqrt(ru2 + 1e-6) / T.sqrt(rg2 + 1e-6) * zg
