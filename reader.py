@@ -104,6 +104,23 @@ def lable_to_var(file_name):
     y = np.asarray(y)
     return y
 
+def textbook_to_kb(file, word2id, keys):
+    print '... loading textbook to kb'
+
+    kb_list = []
+    unk = len(word2id)
+    with open(file, 'r') as f:
+        for line in f:
+            vec = []
+            for word in line.strip().split(' '):
+                if word in keys:
+                    vec.append(int(word2id[word]))
+                else:
+                    vec.append(unk)
+            kb_list.append(vec)
+
+    return kb_list
+
 def init_and_save():
 
     word_to_id, id_to_word, keys, id_to_vec, embedding_matrix = build_dict_vocab(config.embedding_file)
@@ -123,6 +140,12 @@ def init_and_save():
         print '... saving embedding_matrix to data/params/embedding_matrix.dat'
         cPickle.dump(embedding_matrix, f)
 
+    kb = textbook_to_kb('data/raw_material/textbook_mainwords.txt', word_to_id, keys)
+    with open(config.kb_param_file, 'wb') as f:
+        print '... saving kb to ' + config.kb_param_file
+        cPickle.dump(kb, f)
+
+
     train_q, train_l, train_a = data_to_word_ids_qla('data/tiku_qla/train_words.txt', word_to_id, keys, 8)
     train_y = lable_to_var('data/tiku_qla/train_labels.txt')
     train_set = [train_q, train_l, train_a, train_y]
@@ -132,16 +155,23 @@ def init_and_save():
     test_set = [test_q, test_l, test_a, test_y]
 
     with open(config.dataset, 'wb') as f:
-        print '... saving dataset to data/GKHMC_qla.pickle'
+        print '... saving dataset to ' + config.dataset
         cPickle.dump([train_set, test_set], f)
 
 
 def get_embedding_matrix_from_param_file(file_name):
     with open(file_name, 'rb') as f:
-        print '...loadng embedding_matrix from ' + file_name
+        print '... loadng embedding_matrix from ' + file_name
         embedding_matrix = cPickle.load(f)
 
     return np.asarray(embedding_matrix, dtype=theano.config.floatX)
+
+def get_kb_from_param_file(file_name):
+    with open(file_name, 'rb') as f:
+        print '... loading kb from ' + file_name
+        kb = cPickle.load(f)
+
+    return prepare_data_kbm(kb)
 
 def prepare_data(seqs, labels, maxlen=None):
     """Create the matrices from the datasets.
@@ -216,6 +246,19 @@ def prepare_data_qla(questions, leads, answers, labels):
     labels = np.asarray(labels, dtype='int32')
 
     return q, q_mask, l, l_mask, a, a_mask, labels
+
+def prepare_data_kbm(kb_list):
+    lengths = [len(s) for s in kb_list]
+    n_sample = len(kb_list)
+    max_len = max(lengths)
+
+    kbm = np.zeros((n_sample, max_len)).astype('int32')
+    mask = np.zeros((n_sample, max_len)).astype(theano.config.floatX)
+    for idx, s in enumerate(kb_list):
+        kbm[idx, :lengths[idx]] = s
+        mask[idx, :lengths[idx]] = 1.
+
+    return kbm, mask
 
 initialize = True
 datasets = []
@@ -294,11 +337,56 @@ def gkhmc_qla_iterator(path="data/GKHMC_qla.pickle", is_train=True, batch_size=1
                                    test_set_a[idx * batch_size: (idx + 1) * batch_size],
                                    test_set_y[idx * batch_size: (idx + 1) * batch_size])
 
+
+def gkhmc_kbm_iterator(path="data/GKHMC_kbm.pickle", is_train=True, batch_size=100):
+    global initialize_qla
+    global datasets
+    global train_set_q
+    global train_set_l
+    global train_set_a
+    global train_set_y
+    global test_set_q
+    global test_set_l
+    global test_set_a
+    global test_set_y
+
+    if initialize_qla:
+        with open(path, 'rb') as f:
+            datasets = cPickle.load(f)
+        train_set_q, train_set_l, train_set_a, train_set_y = datasets[0]
+        test_set_q, test_set_l, test_set_a, test_set_y = datasets[1]
+        initialize_qla = False
+
+    train_batch_num = len(train_set_a) / batch_size
+    test_batch_num = len(test_set_a) / batch_size
+
+    if is_train:
+        for idx in xrange(train_batch_num):
+            yield prepare_data_qla(train_set_q[idx * batch_size: (idx + 1) * batch_size],
+                                   train_set_l[idx * batch_size: (idx + 1) * batch_size],
+                                   train_set_a[idx * batch_size: (idx + 1) * batch_size],
+                                   train_set_y[idx * batch_size: (idx + 1) * batch_size])
+    else:
+        for idx in xrange(test_batch_num):
+            yield prepare_data_qla(test_set_q[idx * batch_size: (idx + 1) * batch_size],
+                                   test_set_l[idx * batch_size: (idx + 1) * batch_size],
+                                   test_set_a[idx * batch_size: (idx + 1) * batch_size],
+                                   test_set_y[idx * batch_size: (idx + 1) * batch_size])
+
 if __name__ == "__main__":
     # init_and_save()
 
-    embedd = get_embedding_matrix_from_param_file('data/qla_params/embedding_matrix.pickle')
-    print embedd[0]
+    kb = get_kb_from_param_file('data/kbm_params/kb.pickle')
+    print kb[0].shape
+    print kb[0]
+    print kb[1].shape
+    print kb[1]
 
-    for i in gkhmc_qla_iterator(is_train=False, batch_size=20):
-        print i[6]
+    embedd = get_embedding_matrix_from_param_file('data/kbm_params/embedding_matrix.pickle')
+    print embedd[0]
+    print embedd.shape[0]
+
+    for i in gkhmc_kbm_iterator(is_train=False, batch_size=20):
+        print i[0]
+        print i[2]
+        print i[4]
