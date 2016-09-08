@@ -12,7 +12,7 @@ def build_dict_vocab(embedding_file):
         word_to_id = {}
         id_to_word = {}
         embedding_matrix = []
-        keys = []
+        keys = set()
         embedding_matrix.append(np.asarray([0.] * 100, dtype=float))
         i = 1
         for line in datafile:
@@ -22,7 +22,7 @@ def build_dict_vocab(embedding_file):
             vec = [float(word) for word in words[1:]]
             if words[0] in keys:
                 continue
-            keys.append(words[0])
+            keys.add(words[0])
             word_to_id[words[0]] = i
             id_to_word[i] = words[0]
             id_to_vec[i] = np.asarray(vec, dtype=float)
@@ -94,14 +94,17 @@ def data_to_word_ids_qla(file_name, word_to_id, keys, step=8):
 
     return q_list, l_list, a_list
 
-def lable_to_var(file_name):
+def lable_to_var(file_name, len_q):
     print '... load file to labels'
 
-    y = []
     with open(file_name, 'r') as f:
-        for line in f:
-            y.append(int(line.strip()))
-    y = np.asarray(y)
+        y = [int(s.strip()) for s in f.readlines()]
+
+    if len_q < len(y):
+        y = np.asarray(y[:len_q], dtype='int32')
+    else:
+        y = np.asarray(y, dtype='int32')
+
     return y
 
 def textbook_to_kb(file, word2id, keys):
@@ -125,33 +128,33 @@ def init_and_save():
 
     word_to_id, id_to_word, keys, id_to_vec, embedding_matrix = build_dict_vocab(config.embedding_file)
     with open(config.word2id_param_file, 'wb') as f:
-        print '... saving word_to_id to data/params/word2id.dat'
+        print '... saving word_to_id to ' + config.word2id_param_file
         cPickle.dump(word_to_id, f)
     with open(config.id2word_param_file, 'wb') as f:
-        print '... saving word_to_id to data/params/id2word.dat'
+        print '... saving word_to_id to ' + config.id2vec_param_file
         cPickle.dump(id_to_word, f)
     with open(config.keys_param_file, 'wb') as f:
-        print '... saving keys to data/params/keys.dat'
+        print '... saving keys to ' + config.keys_param_file
         cPickle.dump(keys, f)
     with open(config.id2vec_param_file, 'wb') as f:
-        print '... saving id_to_vec to data/params/id2vec.dat'
+        print '... saving id_to_vec to ' + config.id2vec_param_file
         cPickle.dump(id_to_vec, f)
     with open(config.embedding_param_file, 'wb') as f:
-        print '... saving embedding_matrix to data/params/embedding_matrix.dat'
+        print '... saving embedding_matrix to ' + config.embedding_param_file
         cPickle.dump(embedding_matrix, f)
 
-    kb = textbook_to_kb('data/raw_material/textbook_mainwords.txt', word_to_id, keys)
+    kb = textbook_to_kb(config.textbook_file, word_to_id, keys)
     with open(config.kb_param_file, 'wb') as f:
         print '... saving kb to ' + config.kb_param_file
         cPickle.dump(kb, f)
 
-
-    train_q, train_l, train_a = data_to_word_ids_qla('data/tiku_qla/train_words.txt', word_to_id, keys, 8)
-    train_y = lable_to_var('data/tiku_qla/train_labels.txt')
+    train_q, train_l, train_a = data_to_word_ids_qla(config.train_words_file, word_to_id, keys, 8)
+    train_y = lable_to_var(config.train_labels_file, len(train_q))
     train_set = [train_q, train_l, train_a, train_y]
 
-    test_q, test_l, test_a = data_to_word_ids_qla('data/tiku_qla/test_words.txt', word_to_id, keys, 6)
-    test_y = lable_to_var('data/tiku_qla/test_labels.txt')
+    test_q, test_l, test_a = data_to_word_ids_qla(config.test_words_file, word_to_id, keys, 6)
+    print len(test_q), len(test_l), len(test_a)
+    test_y = lable_to_var(config.test_labels_file, len(test_q))
     test_set = [test_q, test_l, test_a, test_y]
 
     with open(config.dataset, 'wb') as f:
@@ -338,55 +341,20 @@ def gkhmc_qla_iterator(path="data/GKHMC_qla.pickle", is_train=True, batch_size=1
                                    test_set_y[idx * batch_size: (idx + 1) * batch_size])
 
 
-def gkhmc_kbm_iterator(path="data/GKHMC_kbm.pickle", is_train=True, batch_size=100):
-    global initialize_qla
-    global datasets
-    global train_set_q
-    global train_set_l
-    global train_set_a
-    global train_set_y
-    global test_set_q
-    global test_set_l
-    global test_set_a
-    global test_set_y
-
-    if initialize_qla:
-        with open(path, 'rb') as f:
-            datasets = cPickle.load(f)
-        train_set_q, train_set_l, train_set_a, train_set_y = datasets[0]
-        test_set_q, test_set_l, test_set_a, test_set_y = datasets[1]
-        initialize_qla = False
-
-    train_batch_num = len(train_set_a) / batch_size
-    test_batch_num = len(test_set_a) / batch_size
-
-    if is_train:
-        for idx in xrange(train_batch_num):
-            yield prepare_data_qla(train_set_q[idx * batch_size: (idx + 1) * batch_size],
-                                   train_set_l[idx * batch_size: (idx + 1) * batch_size],
-                                   train_set_a[idx * batch_size: (idx + 1) * batch_size],
-                                   train_set_y[idx * batch_size: (idx + 1) * batch_size])
-    else:
-        for idx in xrange(test_batch_num):
-            yield prepare_data_qla(test_set_q[idx * batch_size: (idx + 1) * batch_size],
-                                   test_set_l[idx * batch_size: (idx + 1) * batch_size],
-                                   test_set_a[idx * batch_size: (idx + 1) * batch_size],
-                                   test_set_y[idx * batch_size: (idx + 1) * batch_size])
-
 if __name__ == "__main__":
     # init_and_save()
 
-    kb = get_kb_from_param_file('data/kbm_params/kb.pickle')
+    kb = get_kb_from_param_file(config.kb_param_file)
     print kb[0].shape
     print kb[0]
     print kb[1].shape
     print kb[1]
 
-    embedd = get_embedding_matrix_from_param_file('data/kbm_params/embedding_matrix.pickle')
+    embedd = get_embedding_matrix_from_param_file(config.embedding_param_file)
     print embedd[0]
     print embedd.shape[0]
 
-    for i in gkhmc_kbm_iterator(is_train=False, batch_size=20):
+    for i in gkhmc_qla_iterator(is_train=False, batch_size=20):
         print i[0]
         print i[2]
         print i[4]

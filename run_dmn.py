@@ -69,7 +69,7 @@ def run_epoch():
     p_ds = []
     ys = []
     for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_qla_iterator(
-            path='data/GKHMC_qla.pickle', batch_size=options['valid_batch_size'], is_train=False):
+            path=config.dataset, batch_size=options['valid_batch_size'], is_train=False):
         p_d = p_predictor(q_, q_mask_, l_, l_mask_, a_, a_mask_)
         p_ds.extend(p_d)
         ys.extend(y_)
@@ -83,7 +83,7 @@ def run_epoch():
         total_loss = 0.
         idx = 0
         for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_qla_iterator(
-                path='data/GKHMC_qla.pickle', batch_size=options['batch_size'], is_train=True):
+                path=config.dataset, batch_size=options['batch_size'], is_train=True):
             model.emb_set_value_zero()
             this_cost = f_grad_shared(q_, q_mask_, l_, l_mask_, a_, a_mask_, y_)
             f_update(options['lrate'])
@@ -97,7 +97,7 @@ def run_epoch():
             # test performance on train set
             errors = []
             for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_qla_iterator(
-                    path='data/GKHMC_qla.pickle', batch_size=options['valid_batch_size'], is_train=True):
+                    path=config.dataset, batch_size=options['valid_batch_size'], is_train=True):
                 error = detector(q_, q_mask_, l_, l_mask_, a_, a_mask_, y_)
                 errors.append(error)
             print '\ttrain error of epoch ' + str(i) + ': ' + str(np.mean(errors) * 100) + '%'
@@ -106,7 +106,7 @@ def run_epoch():
             p_ds = []
             ys = []
             for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_qla_iterator(
-                    path='data/GKHMC_qla.pickle', batch_size=options['valid_batch_size'], is_train=False):
+                    path=config.dataset, batch_size=options['valid_batch_size'], is_train=False):
                 p_d = p_predictor(q_, q_mask_, l_, l_mask_, a_, a_mask_)
                 p_ds.extend(p_d)
                 ys.extend(y_)

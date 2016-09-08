@@ -85,7 +85,7 @@ class LogisticRegression(object):
 
         self.error = T.mean(T.neq(self.y_d, y))
 
-        self.params = {prefix+'W':self.W, prefix+'b':self.b}
+        self.params = {prefix+'W': self.W, prefix+'b': self.b}
 
 
 class LSTM_layer(object):

@@ -5,7 +5,7 @@ import cPickle
 
 import config
 from reader import get_embedding_matrix_from_param_file
-from reader import gkhmc_kbm_iterator
+from reader import gkhmc_qla_iterator
 from reader import get_kb_from_param_file
 from config import options
 from models import KBMN
@@ -70,8 +70,8 @@ def run_epoch():
     print '...testing the performance of initialized parameters'
     p_ds = []
     ys = []
-    for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_kbm_iterator(
-            path='data/GKHMC_kbm.pickle', batch_size=options['valid_batch_size'], is_train=False):
+    for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_qla_iterator(
+            path=config.dataset, batch_size=options['valid_batch_size'], is_train=False):
         p_d = p_predictor(q_, q_mask_, l_, l_mask_, a_, a_mask_)
         p_ds.extend(p_d)
         ys.extend(y_)
@@ -84,8 +84,8 @@ def run_epoch():
     for i in xrange(options['max_epochs']):
         total_loss = 0.
         idx = 0
-        for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_kbm_iterator(
-                path='data/GKHMC_kbm.pickle', batch_size=options['batch_size'], is_train=True):
+        for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_qla_iterator(
+                path=config.dataset, batch_size=options['batch_size'], is_train=True):
             model.emb_set_value_zero()
             this_cost = f_grad_shared(q_, q_mask_, l_, l_mask_, a_, a_mask_, y_)
             f_update(options['lrate'])
@@ -98,8 +98,8 @@ def run_epoch():
         if (i + 1) % options['valid_freq'] == 0:
             # test performance on train set
             errors = []
-            for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_kbm_iterator(
-                    path='data/GKHMC_kbm.pickle', batch_size=options['valid_batch_size'], is_train=True):
+            for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_qla_iterator(
+                    path=config.dataset, batch_size=options['valid_batch_size'], is_train=True):
                 error = detector(q_, q_mask_, l_, l_mask_, a_, a_mask_, y_)
                 errors.append(error)
             print '\ttrain error of epoch ' + str(i) + ': ' + str(np.mean(errors) * 100) + '%'
@@ -107,8 +107,8 @@ def run_epoch():
             # test performance on test set
             p_ds = []
             ys = []
-            for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_kbm_iterator(
-                    path='data/GKHMC_kbm.pickle', batch_size=options['valid_batch_size'], is_train=False):
+            for q_, q_mask_, l_, l_mask_, a_, a_mask_, y_ in gkhmc_qla_iterator(
+                    path=config.dataset, batch_size=options['valid_batch_size'], is_train=False):
                 p_d = p_predictor(q_, q_mask_, l_, l_mask_, a_, a_mask_)
                 p_ds.extend(p_d)
                 ys.extend(y_)
